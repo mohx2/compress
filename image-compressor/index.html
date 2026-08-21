@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimalist Image Compressor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9099' stroke-width='2'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='17 8 12 3 7 8'/><line x1='12' y1='3' x2='12' y2='15'/></svg>">
+  
+  <style>
+    :root {
+      --bg-deep: #0a0b0d;
+      --bg-surface: #121417;
+      --bg-surface-elevated: #1a1d22;
+      --bg-input: #22262d;
+      --border-subtle: rgba(255, 255, 255, 0.07);
+      --border-strong: rgba(255, 255, 255, 0.15);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --accent-primary: #ffffff;
+      --accent-success: #10b981;
+      --accent-success-bg: rgba(16, 185, 129, 0.12);
+      --font-main: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-xs: 6px;
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-deep);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      line-height: 1.5;
+      display: flex;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-layout {
+      width: 100%;
+      max-width: 1120px;
+      min-height: 100vh;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .brand-name { font-family: var(--font-mono); font-weight: 500; font-size: 1.1rem; }
+    .brand-dot { color: var(--accent-success); }
+    .privacy-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem;
+      color: var(--text-muted); background: var(--bg-surface);
+      border: 1px solid var(--border-subtle); padding: 0.35rem 0.75rem; border-radius: 99px;
+      font-family: var(--font-mono);
+    }
+
+    .main-wrapper { margin: 2.5rem 0; flex-grow: 1; display: flex; align-items: center; }
+
+    .drop-card {
+      width: 100%; background: var(--bg-surface);
+      border: 1px dashed var(--border-strong); border-radius: var(--radius-lg);
+      padding: 5rem 2rem; text-align: center; cursor: pointer; transition: all 0.25s ease;
+    }
+    .drop-card:hover, .drop-card.drag-active {
+      border-color: var(--accent-primary); background: var(--bg-surface-elevated);
+    }
+    .icon-ring {
+      width: 52px; height: 52px; background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; margin: 0 auto 1.25rem;
+    }
+    .drop-title { font-size: 1.25rem; font-weight: 500; margin-bottom: 0.4rem; }
+    .drop-sub { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.75rem; }
+    .drop-actions { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+    .shortcut-hint { font-size: 0.75rem; color: var(--text-dim); }
+    kbd { background: var(--bg-input); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: var(--font-mono); font-size: 0.7rem; border: 1px solid var(--border-subtle); }
+
+    .workspace-card {
+      width: 100%; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;
+    }
+    .hidden { display: none !important; }
+
+    .workspace-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 1rem; border-bottom: 1px solid var(--border-subtle);
+    }
+    .file-meta { display: flex; align-items: center; gap: 0.75rem; }
+    .file-title { font-weight: 500; font-size: 0.95rem; }
+    .dim-badge { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface-elevated); padding: 0.2rem 0.5rem; border-radius: var(--radius-xs); }
+
+    .studio-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
+    @media (max-width: 860px) { .studio-grid { grid-template-columns: 1fr; } }
+
+    .comparison-stage { display: flex; flex-direction: column; gap: 0.5rem; }
+    .comparison-container {
+      position: relative; width: 100%; height: 420px; background: var(--bg-deep);
+      border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-subtle); user-select: none;
+    }
+    .image-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; padding: 1rem; }
+    .image-overlay { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; background: var(--bg-deep); border-right: 1px solid rgba(255, 255, 255, 0.3); }
+    .image-overlay .image-layer { width: 100%; max-width: none; }
+
+    .slider-divider {
+      position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: white;
+      cursor: ew-resize; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .handle-button { width: 28px; height: 28px; background: white; color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    .view-tag { position: absolute; top: 1rem; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; padding: 0.25rem 0.6rem; border-radius: var(--radius-xs); background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); pointer-events: none; }
+    .tag-left { left: 1rem; } .tag-right { right: 1rem; }
+    .stage-hint { font-size: 0.75rem; color: var(--text-dim); text-align: center; }
+
+    .controls-panel { display: flex; flex-direction: column; gap: 1.25rem; }
+    .panel-block { display: flex; flex-direction: column; gap: 0.6rem; }
+    .block-header { display: flex; justify-content: space-between; align-items: center; }
+    .block-label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+    .mono-value { font-family: var(--font-mono); font-size: 0.85rem; }
+
+    .custom-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: var(--bg-input); border-radius: 3px; outline: none; }
+    .custom-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text-main); cursor: pointer; }
+
+    .preset-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+    .pill { background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: var(--text-muted); padding: 0.35rem 0; font-size: 0.7rem; border-radius: var(--radius-xs); cursor: pointer; }
+    .pill.active { background: var(--text-main); color: var(--bg-deep); font-weight: 500; }
+
+    select { width: 100%; background: var(--bg-surface-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); padding: 0.6rem; border-radius: var(--radius-xs); font-family: var(--font-main); font-size: 0.85rem; outline: none; }
+
+    .metrics-card { background: var(--bg-deep); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .metric-row { display: flex; justify-content: space-between; font-size: 0.8rem; }
+    .metric-label { color: var(--text-muted); } .metric-val { font-family: var(--font-mono); }
+    .metric-divider { height: 1px; background: var(--border-subtle); }
+    .savings-row { display: flex; justify-content: space-between; align-items: center; }
+    .savings-badge { font-family: var(--font-mono); font-weight: 600; font-size: 0.9rem; color: var(--accent-success); background: var(--accent-success-bg); padding: 0.2rem 0.5rem; border-radius: var(--radius-xs); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: var(--radius-xs); font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: var(--text-main); color: var(--bg-deep); }
+    .btn-accent { background: var(--accent-success); color: #000; font-weight: 600; }
+    .btn-full { width: 100%; }
+    .btn-text { background: none; border: none; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+
+    .bottom-footer { text-align: center; padding-top: 2rem; border-top: 1px solid var(--border-subtle); font-size: 0.8rem; color: var(--text-dim); }
+    .bottom-footer a { color: var(--text-muted); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Native Hidden File Input -->
+  <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp" style="display: none !important;">
+
+  <div class="app-layout">
+    <header class="top-nav">
+      <div class="brand"><span class="brand-name">compress</span><span class="brand-dot">.</span></div>
+      <div class="privacy-badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Quick Browser Processing
+      </div>
+    </header>
+
+    <main class="main-wrapper">
+      <section id="upload-zone" class="drop-card">
+        <div class="drop-inner">
+          <div class="icon-ring">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h1 class="drop-title">Drop an image to compress</h1>
+          <p class="drop-sub">JPEG, PNG, or WEBP up to 25MB</p>
+          <div class="drop-actions">
+            <button id="browse-btn" class="btn btn-primary" type="button">Select Image</button>
+            <span class="shortcut-hint">or paste with <kbd>Ctrl</kbd> + <kbd>V</kbd></span>
+          </div>
+        </div>
+      </section>
+
+      <section id="workspace-zone" class="workspace-card hidden">
+        <div class="workspace-header">
+          <div class="file-meta">
+            <span id="file-name" class="file-title">filename.jpg</span>
+            <span id="file-dims" class="dim-badge">1920 × 1080</span>
+          </div>
+          <button id="replace-btn" class="btn-text" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Change Image
+          </button>
+        </div>
+
+        <div class="studio-grid">
+          <div class="comparison-stage">
+            <div id="comparison-slider" class="comparison-container">
+              <img id="compressed-preview" class="image-layer" alt="Compressed">
+              <div id="original-overlay" class="image-overlay">
+                <img id="original-preview" class="image-layer" alt="Original">
+              </div>
+              <div id="slider-handle" class="slider-divider">
+                <div class="handle-button">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8L22 12L18 16M6 8L2 12L6 16"/></svg>
+                </div>
+              </div>
+              <span class="view-tag tag-left">Original</span>
+              <span class="view-tag tag-right">Compressed</span>
+            </div>
+            <p class="stage-hint">Drag handle to compare visual quality</p>
+          </div>
+
+          <aside class="controls-panel">
+            <div class="panel-block">
+              <div class="block-header">
+                <label for="quality-range" class="block-label">Quality Level</label>
+                <span id="quality-display" class="mono-value">80%</span>
+              </div>
+              <input type="range" id="quality-range" min="5" max="100" value="80" step="1" class="custom-slider">
+              <div class="preset-pills">
+                <button class="pill" data-quality="90" type="button">High Quality</button>
+                <button class="pill active" data-quality="80" type="button">Balanced</button>
+                <button class="pill" data-quality="60" type="button">Max Savings</button>
+              </div>
+            </div>
+
+            <div class="panel-block">
+              <label for="format-select" class="block-label">Output Format</label>
+              <select id="format-select">
+                <option value="image/webp" selected>WEBP (Recommended)</option>
+                <option value="image/jpeg">JPEG (Standard)</option>
+                <option value="image/png">PNG (Lossless)</option>
+              </select>
+            </div>
+
+            <div class="metrics-card">
+              <div class="metric-row"><span class="metric-label">Original Size</span><span id="size-original" class="metric-val">0 KB</span></div>
+              <div class="metric-row"><span class="metric-label">Compressed Size</span><span id="size-compressed" class="metric-val">0 KB</span></div>
+              <div class="metric-divider"></div>
+              <div class="savings-row"><span class="savings-text">Reduction</span><span id="savings-percent" class="savings-badge">-0%</span></div>
+            </div>
+
+            <a id="download-link" class="btn btn-accent btn-full" download="compressed.webp">
+              <span>Download Compressed</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="bottom-footer">
+      <p>Made with precision by <a href="https://github.com/mohx2" target="_blank" rel="noopener">mohx2</a></p>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const fileInput = document.getElementById('file-input');
+      const browseBtn = document.getElementById('browse-btn');
+      const replaceBtn = document.getElementById('replace-btn');
+      const uploadZone = document.getElementById('upload-zone');
+      const workspaceZone = document.getElementById('workspace-zone');
+
+      const fileNameEl = document.getElementById('file-name');
+      const fileDimsEl = document.getElementById('file-dims');
+      const sizeOriginalEl = document.getElementById('size-original');
+      const sizeCompressedEl = document.getElementById('size-compressed');
+      const savingsPercentEl = document.getElementById('savings-percent');
+
+      const qualityRange = document.getElementById('quality-range');
+      const qualityDisplay = document.getElementById('quality-display');
+      const formatSelect = document.getElementById('format-select');
+      const presetPills = document.querySelectorAll('.pill');
+
+      const originalPreview = document.getElementById('original-preview');
+      const compressedPreview = document.getElementById('compressed-preview');
+      const downloadLink = document.getElementById('download-link');
+
+      const comparisonContainer = document.getElementById('comparison-slider');
+      const originalOverlay = document.getElementById('original-overlay');
+      const sliderHandle = document.getElementById('slider-handle');
+
+      let originalFile = null;
+      let originalImageObject = null;
+      let currentCompressedUrl = null;
+      let currentOriginalUrl = null;
+      let isDraggingSlider = false;
+
+      // File triggers
+      uploadZone.addEventListener('click', () => fileInput.click());
+      browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+      replaceBtn.addEventListener('click', () => fileInput.click());
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) handleFileSelect(e.target.files[0]);
+      });
+
+      // Drag and drop
+      ['dragenter', 'dragover'].forEach(n => uploadZone.addEventListener(n, (e) => { e.preventDefault(); uploadZone.classList.add('drag-active'); }));
+      ['dragleave', 'drop'].forEach(n => uploadZone.addEventListener(n, (e) => { e.preventDefault(); uploadZone.classList.remove('drag-active'); }));
+      uploadZone.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
+      });
+
+      // Clipboard Paste
+      document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            const file = items[i].getAsFile();
+            if (file) handleFileSelect(file);
+            break;
+          }
+        }
+      });
+
+      qualityRange.addEventListener('input', (e) => {
+        qualityDisplay.textContent = `${e.target.value}%`;
+        syncPills(e.target.value);
+        processImage();
+      });
+
+      formatSelect.addEventListener('change', () => processImage());
+
+      presetPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          const q = pill.getAttribute('data-quality');
+          qualityRange.value = q;
+          qualityDisplay.textContent = `${q}%`;
+          syncPills(q);
+          processImage();
+        });
+      });
+
+      function handleFileSelect(file) {
+        if (!file.type.match('image.*')) return alert('Please upload a valid image.');
+        originalFile = file;
+
+        if (currentOriginalUrl) URL.revokeObjectURL(currentOriginalUrl);
+        if (currentCompressedUrl) URL.revokeObjectURL(currentCompressedUrl);
+
+        currentOriginalUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.src = currentOriginalUrl;
+
+        img.onload = () => {
+          originalImageObject = img;
+          fileNameEl.textContent = file.name;
+          fileDimsEl.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+          sizeOriginalEl.textContent = formatBytes(file.size);
+          originalPreview.src = currentOriginalUrl;
+
+          uploadZone.classList.add('hidden');
+          workspaceZone.classList.remove('hidden');
+
+          setSliderPosition(50);
+          processImage();
+        };
+      }
+
+      function processImage() {
+        if (!originalImageObject) return;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = originalImageObject.naturalWidth;
+        canvas.height = originalImageObject.naturalHeight;
+
+        ctx.drawImage(originalImageObject, 0, 0);
+
+        const format = formatSelect.value;
+        const quality = parseFloat(qualityRange.value) / 100;
+
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          if (currentCompressedUrl) URL.revokeObjectURL(currentCompressedUrl);
+          currentCompressedUrl = URL.createObjectURL(blob);
+
+          compressedPreview.src = currentCompressedUrl;
+          downloadLink.href = currentCompressedUrl;
+
+          const ext = format.split('/')[1];
+          const rawName = originalFile.name.substring(0, originalFile.name.lastIndexOf('.')) || 'image';
+          downloadLink.download = `${rawName}-compressed.${ext}`;
+
+          updateMetrics(originalFile.size, blob.size);
+        }, format, quality);
+      }
+
+      function updateMetrics(origSize, compSize) {
+        sizeCompressedEl.textContent = formatBytes(compSize);
+        const diff = origSize - compSize;
+        const percentage = Math.round((diff / origSize) * 100);
+
+        if (percentage >= 0) {
+          savingsPercentEl.textContent = `-${percentage}%`;
+          savingsPercentEl.style.color = 'var(--accent-success)';
+        } else {
+          savingsPercentEl.textContent = `+${Math.abs(percentage)}%`;
+          savingsPercentEl.style.color = '#ef4444';
+        }
+      }
+
+      function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024, sizes = ['Bytes', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      function syncPills(val) {
+        presetPills.forEach(p => p.classList.toggle('active', p.getAttribute('data-quality') === String(val)));
+      }
+
+      function setSliderPosition(percentage) {
+        const clamped = Math.max(0, Math.min(100, percentage));
+        originalOverlay.style.width = `${clamped}%`;
+        sliderHandle.style.left = `${clamped}%`;
+        if (comparisonContainer) originalPreview.style.width = `${comparisonContainer.offsetWidth}px`;
+      }
+
+      function handleMove(clientX) {
+        if (!comparisonContainer) return;
+        const rect = comparisonContainer.getBoundingClientRect();
+        setSliderPosition(((clientX - rect.left) / rect.width) * 100);
+      }
+
+      comparisonContainer.addEventListener('mousedown', (e) => { isDraggingSlider = true; handleMove(e.clientX); });
+      window.addEventListener('mouseup', () => isDraggingSlider = false);
+      window.addEventListener('mousemove', (e) => { if (isDraggingSlider) handleMove(e.clientX); });
+    });
+  </script>
+</body>
+</html>
